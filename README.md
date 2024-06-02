@@ -82,3 +82,36 @@ async fn main() {
     ...
 }
 ```
+
+### Change query header and extra parameters
+
+```rust
+use warp::{Filter, hyper::Body, Reply, Rejection, hyper::Response};
+use warp_reverse_proxy::{extract_request_data_filter, proxy_to_and_forward_response, Headers};
+
+#[tokio::main]
+async fn main() {
+    let request_filter = extract_request_data_filter();
+    let app = warp::any()
+        // build the request with data from previous filters
+        .and(request_filter)
+        .and_then(|path: warp::filters::path::FullPath, query, method, mut headers: Headers, mut body: warp::hyper::body::Bytes|{
+            headers
+                // insert header values
+                .insert("FOO_HEADER", "Foo content".parse().unwrap())
+                .unwrap();
+            proxy_to_and_forward_response(
+                "http://127.0.0.1:3000".to_string(),
+                "".to_string(),
+                path,
+                query,
+                method,
+                headers,
+                body,
+            )
+        });
+
+    // spawn proxy server
+    warp::serve(app).run(([0, 0, 0, 0], 3030)).await;
+}
+```
